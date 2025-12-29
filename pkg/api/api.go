@@ -25,16 +25,20 @@ import (
 
 var (
 	// DbClient represents the active database connection in a single-session mode
+	// 代表单会话模式下的客户端
 	DbClient *client.Client
 
 	// DbSessions represents the mapping for client connections
+	// 管理客户端连接的映射，代表多会话模式下的连接管理
 	DbSessions *SessionManager
 
 	// QueryStore reads the SQL queries stores in the home directory
+	// 从home目录下读取SQL查询
 	QueryStore *queries.Store
 )
 
 // DB returns a database connection from the client context
+// 返回当前的客户端连接，前置 dbCheckMiddleware 会进行拦截检查
 func DB(c *gin.Context) *client.Client {
 	if command.Opts.Sessions {
 		return DbSessions.Get(getSessionId(c.Request))
@@ -43,7 +47,9 @@ func DB(c *gin.Context) *client.Client {
 }
 
 // setClient sets the database client connection for the sessions
+// 设置会话的DB客户端
 func setClient(c *gin.Context, newClient *client.Client) error {
+	// 关闭当前客户端
 	currentClient := DB(c)
 	if currentClient != nil {
 		currentClient.Close()
@@ -59,11 +65,13 @@ func setClient(c *gin.Context, newClient *client.Client) error {
 		return errSessionRequired
 	}
 
+	// 设置新客户端
 	DbSessions.Add(sid, newClient)
 	return nil
 }
 
 // GetHome renders the home page
+// 主页信息
 func GetHome(prefix string) http.Handler {
 	if prefix != "" {
 		prefix = "/" + prefix
@@ -71,6 +79,7 @@ func GetHome(prefix string) http.Handler {
 	return http.StripPrefix(prefix, static.GetHandler())
 }
 
+// 前端静态资源
 func GetAssets(prefix string) http.Handler {
 	if prefix != "" {
 		prefix = "/" + prefix + "static/"
@@ -81,6 +90,7 @@ func GetAssets(prefix string) http.Handler {
 }
 
 // GetSessions renders the number of active sessions
+// 返回当前Session数量，如果是 Debug 模式，则返回 Session 详细信息
 func GetSessions(c *gin.Context) {
 	// In debug mode endpoint will return a lot of sensitive information
 	// like full database connection string and all query history.
@@ -111,6 +121,7 @@ func ConnectWithBackend(c *gin.Context) {
 	}
 
 	// Make the new session
+	// 创建新的 Session
 	sid, err := securerandom.Uuid()
 	if err != nil {
 		badRequest(c, err)
@@ -119,6 +130,7 @@ func ConnectWithBackend(c *gin.Context) {
 	c.Request.Header.Add("x-session-id", sid)
 
 	// Connect to the database
+	// 链接到数据库
 	cl, err := client.NewFromUrl(cred.DatabaseURL, nil)
 	if err != nil {
 		badRequest(c, err)
@@ -143,6 +155,7 @@ func ConnectWithBackend(c *gin.Context) {
 
 // Connect creates a new client connection
 func Connect(c *gin.Context) {
+	// 单数据库连接模式，不允许创建新连接
 	if command.Opts.LockSession {
 		badRequest(c, errSessionLocked)
 		return
@@ -153,11 +166,12 @@ func Connect(c *gin.Context) {
 		err error
 	)
 
+	// 使用书签连接
 	if bookmarkID := c.Request.FormValue("bookmark_id"); bookmarkID != "" {
 		cl, err = ConnectWithBookmark(bookmarkID)
 	} else if command.Opts.BookmarksOnly {
 		err = errNotPermitted
-	} else {
+	} else { // 使用 url 连接
 		cl, err = ConnectWithURL(c)
 	}
 	if err != nil {
@@ -171,6 +185,7 @@ func Connect(c *gin.Context) {
 		return
 	}
 
+	// 保存到 SessionManager
 	info, err := cl.Info()
 	if err == nil {
 		err = setClient(c, cl)
@@ -185,11 +200,13 @@ func Connect(c *gin.Context) {
 }
 
 func ConnectWithURL(c *gin.Context) (*client.Client, error) {
+	// 读取 URL
 	url := c.Request.FormValue("url")
 	if url == "" {
 		return nil, errURLRequired
 	}
 
+	// 格式化 url,检查url是否合法，比如对于query参数的key进行小写，设置sslmode，connect_timeout，password
 	url, err := connection.FormatURL(command.Options{
 		URL:      url,
 		Passfile: command.Opts.Passfile,
@@ -198,11 +215,13 @@ func ConnectWithURL(c *gin.Context) (*client.Client, error) {
 		return nil, err
 	}
 
+	// 获取 ssh
 	var sshInfo *shared.SSHInfo
 	if c.Request.FormValue("ssh") != "" {
 		sshInfo = parseSshInfo(c)
 	}
 
+	// 创建客户端
 	return client.NewFromUrl(url, sshInfo)
 }
 
@@ -218,12 +237,14 @@ func ConnectWithBookmark(id string) (*client.Client, error) {
 }
 
 // SwitchDb perform database switch for the client connection
+// 切换数据库
 func SwitchDb(c *gin.Context) {
 	if command.Opts.LockSession {
 		badRequest(c, errSessionLocked)
 		return
 	}
 
+	// 读取 db
 	name := c.Request.URL.Query().Get("db")
 	if name == "" {
 		name = c.Request.FormValue("db")
@@ -233,6 +254,7 @@ func SwitchDb(c *gin.Context) {
 		return
 	}
 
+	// 获取当前连接
 	conn := DB(c)
 	if conn == nil {
 		badRequest(c, errNotConnected)
@@ -245,25 +267,30 @@ func SwitchDb(c *gin.Context) {
 		return
 	}
 
+	// 解析当前连接
 	currentURL, err := neturl.Parse(conn.ConnectionString)
 	if err != nil {
 		badRequest(c, errInvalidConnString)
 		return
 	}
+	// 更新数据库名称
 	currentURL.Path = name
 
+	// 使用新URL连接
 	cl, err := client.NewFromUrl(currentURL.String(), nil)
 	if err != nil {
 		badRequest(c, err)
 		return
 	}
 
+	// 检查测试
 	err = cl.Test()
 	if err != nil {
 		badRequest(c, err)
 		return
 	}
 
+	// 读取信息
 	info, err := cl.Info()
 	if err == nil {
 		err = setClient(c, cl)
@@ -274,12 +301,14 @@ func SwitchDb(c *gin.Context) {
 		return
 	}
 
+	// 关闭旧连接
 	conn.Close()
 
 	successResponse(c, info.Format()[0])
 }
 
 // Disconnect closes the current database connection
+// 关闭当前连接
 func Disconnect(c *gin.Context) {
 	if command.Opts.LockSession {
 		badRequest(c, errSessionLocked)
@@ -309,7 +338,9 @@ func Disconnect(c *gin.Context) {
 }
 
 // RunQuery executes the query
+// 执行查询
 func RunQuery(c *gin.Context) {
+	// 获取 query
 	query := cleanQuery(c.Request.FormValue("query"))
 
 	if query == "" {
@@ -322,6 +353,7 @@ func RunQuery(c *gin.Context) {
 
 // ExplainQuery renders query explain plan
 func ExplainQuery(c *gin.Context) {
+	// 获取 query
 	query := cleanQuery(c.Request.FormValue("query"))
 
 	if query == "" {
@@ -329,11 +361,13 @@ func ExplainQuery(c *gin.Context) {
 		return
 	}
 
+	// 包装为 EXPLAIN
 	HandleQuery(fmt.Sprintf("EXPLAIN %s", query), c)
 }
 
 // AnalyzeQuery renders query explain plan and analyze profile
 func AnalyzeQuery(c *gin.Context) {
+	// 获取 query
 	query := cleanQuery(c.Request.FormValue("query"))
 
 	if query == "" {
@@ -341,6 +375,7 @@ func AnalyzeQuery(c *gin.Context) {
 		return
 	}
 
+	// 包装为 EXPLAIN ANALYZE
 	HandleQuery(fmt.Sprintf("EXPLAIN ANALYZE %s", query), c)
 }
 
@@ -556,18 +591,22 @@ func GetTablesStats(c *gin.Context) {
 func HandleQuery(query string, c *gin.Context) {
 	metrics.IncrementQueriesCount()
 
+	// 使用 base64 解码字符串
 	rawQuery, err := base64.StdEncoding.DecodeString(desanitize64(query))
 	if err == nil {
 		query = string(rawQuery)
 	}
 
+	// 获取指定客户端来执行查询
 	result, err := DB(c).Query(query)
 	if err != nil {
 		badRequest(c, err)
 		return
 	}
 
+	// 获取 format
 	format := getQueryParam(c, "format")
+	// 获取 filename
 	filename := getQueryParam(c, "filename")
 
 	if filename == "" {
@@ -578,6 +617,7 @@ func HandleQuery(query string, c *gin.Context) {
 		c.Writer.Header().Set("Content-disposition", "attachment;filename="+filename)
 	}
 
+	// 当传递 csv, json, xml 是为下载数据，默认为返回数据
 	switch format {
 	case "csv":
 		c.Data(200, "text/csv", result.CSV())
@@ -591,6 +631,7 @@ func HandleQuery(query string, c *gin.Context) {
 }
 
 // GetBookmarks renders the list of available bookmarks
+// 获取可用的书签
 func GetBookmarks(c *gin.Context) {
 	manager := bookmarks.NewManager(command.Opts.BookmarksDir)
 	ids, err := manager.ListIDs()
@@ -598,6 +639,7 @@ func GetBookmarks(c *gin.Context) {
 }
 
 // GetInfo renders the pgweb system information
+// 返回系统信息
 func GetInfo(c *gin.Context) {
 	successResponse(c, gin.H{
 		"app": command.Info,
@@ -611,21 +653,26 @@ func GetInfo(c *gin.Context) {
 }
 
 // DataExport performs database table export
+// 执行表数据导出
 func DataExport(c *gin.Context) {
+	// 获取客户端
 	db := DB(c)
 
+	// 获取客户端信息
 	info, err := db.Info()
 	if err != nil {
 		badRequest(c, err)
 		return
 	}
 
+	// 执行 Dump 命令
 	dump := client.Dump{
 		Table: strings.TrimSpace(c.Request.FormValue("table")),
 	}
 
 	// Perform validation of pg_dump command availability and compatibility.
 	// Must be done before the actual command is executed to display errors.
+	// 执行 pg_dump 命令校验
 	if err := dump.Validate(db.ServerVersion()); err != nil {
 		badRequest(c, err)
 		return
@@ -645,6 +692,7 @@ func DataExport(c *gin.Context) {
 		fmt.Sprintf(`attachment; filename="%s.sql.gz"`, filename),
 	)
 
+	// 执行导出
 	err = dump.Export(c.Request.Context(), db.ConnectionString, c.Writer)
 	if err != nil {
 		logger.WithError(err).Error("pg_dump command failed")
@@ -653,11 +701,13 @@ func DataExport(c *gin.Context) {
 }
 
 // GetFunction renders function information
+// 获取函数
 func GetFunction(c *gin.Context) {
 	res, err := DB(c).Function(c.Param("id"))
 	serveResult(c, res, err)
 }
 
+// 获取本地查询
 func GetLocalQueries(c *gin.Context) {
 	connCtx, err := DB(c).GetConnContext()
 	if err != nil {

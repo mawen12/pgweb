@@ -56,6 +56,7 @@ func initClientUsingBookmark(baseDir, bookmarkName string) (*client.Client, erro
 }
 
 func initClient() {
+	// 未配置连接信息和书签，不再连接，这是用于初始化连接的场景
 	if connection.IsBlank(command.Opts) && options.Bookmark == "" {
 		return
 	}
@@ -120,35 +121,43 @@ func initOptions() {
 	command.Opts = opts
 	options = opts
 
+	// 仅输出版本，并退出
 	if options.Version {
 		printVersion()
 		os.Exit(0)
 	}
 
+	// 配置日志级别和输出格式
 	if err := configureLogger(opts); err != nil {
 		exitWithMessage(err.Error())
 		return
 	}
 
+	// 只读模式警告
 	if options.ReadOnly {
 		fmt.Println(readonlyWarning)
 	}
 
+	// 编码格式
 	if options.BinaryCodec != "" {
 		if err := client.SetBinaryCodec(options.BinaryCodec); err != nil {
 			exitWithMessage(err.Error())
 		}
 	}
 
+	// 配置本地查询存储
 	configureLocalQueryStore()
+	// 打印版本
 	printVersion()
 }
 
 func configureLocalQueryStore() {
+	// 当采用多会话或未设置本地查询目录时跳过
 	if options.Sessions || options.QueriesDir == "" {
 		return
 	}
 
+	// 检查目录是否合法
 	stat, err := os.Stat(options.QueriesDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -168,6 +177,7 @@ func configureLocalQueryStore() {
 }
 
 func configureLogger(opts command.Options) error {
+	// 设置日志级别，对于开启了 debug 开关，使用 debug 级别
 	if options.Debug {
 		logger.SetLevel(logrus.DebugLevel)
 	} else {
@@ -178,6 +188,7 @@ func configureLogger(opts command.Options) error {
 		logger.SetLevel(lvl)
 	}
 
+	// 配置日志格式，支持 text/json
 	switch options.LogFormat {
 	case "text":
 		logger.SetFormatter(&logrus.TextFormatter{})
@@ -190,13 +201,17 @@ func configureLogger(opts command.Options) error {
 	return nil
 }
 
+// 打印版本信息
 func printVersion() {
 	fmt.Println(command.VersionString())
 }
 
+// 创建 gin sevrer
 func startServer() {
 	router := gin.New()
+	// 设置日志中间件
 	router.Use(api.RequestLogger(logger))
+	// 设置Recovery中间件
 	router.Use(gin.Recovery())
 
 	// Enable HTTP basic authentication only if both user and password are set
@@ -205,11 +220,15 @@ func startServer() {
 		router.Use(gin.BasicAuth(auth))
 	}
 
+	// 设置日志
 	api.SetLogger(logger)
+	// 设置路由
 	api.SetupRoutes(router)
+	// 设置metrics
 	api.SetupMetrics(router)
 
 	fmt.Println("Starting server...")
+	// 使用异步 goroutine 启动
 	go func() {
 		metrics.SetHealthy(true)
 
@@ -294,8 +313,11 @@ func testClient(cl *client.Client, retryCount int, retryDelay time.Duration) (ab
 	}
 }
 
+// 命令执行入口
 func Run() {
+	// 初始化配置
 	initOptions()
+	// 使用默认配置来创建客户端，并尝试连接本地的postgres
 	initClient()
 
 	if api.DbClient != nil {
@@ -307,6 +329,7 @@ func Run() {
 	}
 
 	// Print memory usage every 30 seconds with debug flag
+	// 每隔30s输出一次内存使用
 	if options.Debug {
 		util.StartProfiler()
 	}
@@ -327,7 +350,10 @@ func Run() {
 		go startMetricsServer()
 	}
 
+	// 注册middleware, routes, 启动 gin
 	startServer()
+	// 打开网页
 	openPage()
+	// 监听Signal/Interrupt/SIGTERM，用于响应中断
 	handleSignals()
 }

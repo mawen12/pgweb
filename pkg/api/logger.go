@@ -29,6 +29,8 @@ func SetLogger(l *logrus.Logger) {
 	logger = l
 }
 
+// RequestLogger middleware
+// 请求日志中间件
 func RequestLogger(logger *logrus.Logger) gin.HandlerFunc {
 	debug := logger.Level > logrus.InfoLevel
 	logForwardedUser := command.Opts.LogForwardedUser
@@ -106,6 +108,7 @@ func sanitizeLogPath(str string) string {
 	return reConnectToken.ReplaceAllString(str, "/connect/REDACTED")
 }
 
+// 获取请求 ID, x-request-id => x-amzn-trace-id
 func getRequestID(c *gin.Context) string {
 	id := c.GetHeader("x-request-id")
 	if id == "" {

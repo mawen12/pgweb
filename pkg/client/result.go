@@ -13,6 +13,7 @@ import (
 	"github.com/sosedoff/pgweb/pkg/command"
 )
 
+// 枚举
 const (
 	ObjTypeTable            = "table"
 	ObjTypeView             = "view"
@@ -23,6 +24,7 @@ const (
 
 type (
 	// Row represents a single row of data
+	// 由于 Row 本身由 Table 的结构决定，因此非静态数据，使用 interface{} 代表单列数据，[] 组合一列数据
 	Row []interface{}
 
 	// RowsOptions contains a list of parameters for table browsing requests
@@ -34,6 +36,7 @@ type (
 		SortOrder  string // Sort direction (ASC, DESC)
 	}
 
+	// 分页信息
 	Pagination struct {
 		Rows    int64 `json:"rows_count"`
 		Page    int64 `json:"page"`
@@ -41,20 +44,32 @@ type (
 		PerPage int64 `json:"per_page"`
 	}
 
+	// 返回结果
 	Result struct {
-		Pagination *Pagination  `json:"pagination,omitempty"`
-		Columns    []string     `json:"columns"`
-		Rows       []Row        `json:"rows"`
-		Stats      *ResultStats `json:"stats,omitempty"`
+		// 分页信息
+		Pagination *Pagination `json:"pagination,omitempty"`
+		// 列
+		Columns []string `json:"columns"`
+		// 记录行
+		Rows []Row `json:"rows"`
+		// 状态
+		Stats *ResultStats `json:"stats,omitempty"`
 	}
 
+	// 统计数据
 	ResultStats struct {
-		ColumnsCount    int       `json:"columns_count"`
-		RowsCount       int       `json:"rows_count"`
-		RowsAffected    int64     `json:"rows_affected"`
-		QueryStartTime  time.Time `json:"query_start_time"`
+		// 列总数
+		ColumnsCount int `json:"columns_count"`
+		// 行总数
+		RowsCount int `json:"rows_count"`
+		// 行影响结果
+		RowsAffected int64 `json:"rows_affected"`
+		// 查询开始时间
+		QueryStartTime time.Time `json:"query_start_time"`
+		// 查询结束时间
 		QueryFinishTime time.Time `json:"query_finish_time"`
-		QueryDuration   int64     `json:"query_duration_ms"`
+		// 查询耗时
+		QueryDuration int64 `json:"query_duration_ms"`
 	}
 
 	Object struct {
@@ -62,6 +77,7 @@ type (
 		Name string `json:"name"`
 	}
 
+	// 对象
 	Objects struct {
 		Tables            []Object `json:"table"`
 		Views             []Object `json:"view"`
@@ -73,6 +89,7 @@ type (
 
 // Due to big int number limitations in javascript, numbers should be encoded
 // as strings so they could be properly loaded on the frontend.
+// 将 int 转换为 string
 func (res *Result) PostProcess() {
 	for i, row := range res.Rows {
 		for j, col := range row {
@@ -128,6 +145,7 @@ func (res *Result) Format() []map[string]interface{} {
 	return items
 }
 
+// 将结果转换为 CSV 的字节数组
 func (res *Result) CSV() []byte {
 	buff := &bytes.Buffer{}
 	writer := csv.NewWriter(buff)
@@ -161,6 +179,7 @@ func (res *Result) CSV() []byte {
 	return buff.Bytes()
 }
 
+// 将结果转换为 JSON 的字节数组
 func (res *Result) JSON() []byte {
 	var data []byte
 

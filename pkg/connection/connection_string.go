@@ -54,17 +54,20 @@ func FormatURL(opts command.Options) (string, error) {
 	url := opts.URL
 
 	// Validate connection string prefix
+	// 检查url前缀是否合法
 	if !hasValidPrefix(url) {
 		return "", errInvalidURLFormat
 	}
 
 	// Validate the URL
+	// 使用 net/url 解析 url 是否合法
 	uri, err := neturl.Parse(url)
 	if err != nil {
 		return "", errInvalidURLFormat
 	}
 
 	// Get query params
+	// 将url中的查询参数转换为param
 	params := valsFromQuery(uri.Query())
 
 	// Determine if we need to specify sslmode if it's missing

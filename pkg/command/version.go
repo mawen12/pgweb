@@ -44,6 +44,7 @@ func init() {
 	Info.GoVersion = GoVersion
 }
 
+// 输出版本信息，对于已打包程序，还额外输出 gitCommit, goVersion, buildTime, buildArch
 func VersionString() string {
 	chunks := []string{fmt.Sprintf("Pgweb v%s", Version)}
 

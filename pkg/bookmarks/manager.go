@@ -10,7 +10,9 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// 书签管理器
 type Manager struct {
+	// 书签目录
 	dir string
 }
 

@@ -39,10 +39,10 @@ type Client struct {
 	tunnel           *Tunnel
 	serverVersion    string
 	serverType       string
-	lastQueryTime    time.Time
-	queryTimeout     time.Duration
-	readonly         bool
-	closed           bool
+	lastQueryTime    time.Time        // 上次查询时间
+	queryTimeout     time.Duration    // 查询超时配置
+	readonly         bool             // 只读状态标志位
+	closed           bool             // 关闭状态标志位
 	External         bool             `json:"external"`
 	History          []history.Record `json:"history"`
 	ConnectionString string           `json:"connection_string"`
@@ -179,6 +179,7 @@ func NewFromBookmark(bookmark *bookmarks.Bookmark) (*Client, error) {
 	return client, nil
 }
 
+// 初始化客户端，设置超时时间和版本信息
 func (client *Client) init() {
 	if command.Opts.QueryTimeout > 0 {
 		client.queryTimeout = time.Second * time.Duration(command.Opts.QueryTimeout)
@@ -187,6 +188,7 @@ func (client *Client) init() {
 	client.setServerVersion()
 }
 
+// 使用 SELECT version() 查询版本信息
 func (client *Client) setServerVersion() {
 	res, err := client.query("SELECT version()")
 	if err != nil || len(res.Rows) < 1 {
@@ -201,24 +203,30 @@ func (client *Client) setServerVersion() {
 	}
 }
 
+// 测试，默认10s超时
 func (client *Client) Test() error {
 	// NOTE: This is a different timeout defined in CLI OpenTimeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// 执行 ping 命令
 	err := client.db.PingContext(ctx)
 	if err == nil {
 		return nil
 	}
 
+	// 读取错误消息
 	errMsg := err.Error()
 
+	// 拒绝连接
 	if regexErrConnectionRefused.MatchString(errMsg) {
 		return ErrConnectionRefused
 	}
+	// 认证失败
 	if regexErrAuthFailed.MatchString(errMsg) {
 		return ErrAuthFailed
 	}
+	// database不存在
 	if regexErrDatabaseNotExist.MatchString(errMsg) {
 		return ErrDatabaseNotExist
 	}
@@ -226,6 +234,7 @@ func (client *Client) Test() error {
 	return err
 }
 
+// 在超时时间范围内，重复尝试连接，直到成功或到达超时时间
 func (client *Client) TestWithTimeout(timeout time.Duration) (result error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -241,6 +250,7 @@ func (client *Client) TestWithTimeout(timeout time.Duration) (result error) {
 
 	for {
 		select {
+		// 每隔250ms请求一次
 		case <-ticker.C:
 			result = client.db.PingContext(ctx)
 			if result == nil {
@@ -252,10 +262,13 @@ func (client *Client) TestWithTimeout(timeout time.Duration) (result error) {
 	}
 }
 
+// 获取系统信息
 func (client *Client) Info() (*Result, error) {
+	// 使用预设字段
 	result, err := client.query(statements.Info)
 	if err != nil {
 		msg := err.Error()
+		// 对于 inet_ / not supported / permission denied 这类错误，使用更简单的调用
 		if strings.Contains(msg, "inet_") && (strings.Contains(msg, "not supported") || strings.Contains(msg, "permission denied")) {
 			// Fetch client information without inet_ function calls
 			result, err = client.query(statements.InfoSimple)
@@ -264,31 +277,40 @@ func (client *Client) Info() (*Result, error) {
 	return result, err
 }
 
+// 获取数据库
 func (client *Client) Databases() ([]string, error) {
 	return client.fetchRows(statements.Databases)
 }
 
+// 获取 schema
 func (client *Client) Schemas() ([]string, error) {
 	return client.fetchRows(statements.Schemas)
 }
 
+// 获取对象
 func (client *Client) Objects() (*Result, error) {
 	return client.query(statements.Objects)
 }
 
+// 获取表信息
 func (client *Client) Table(table string) (*Result, error) {
+	// 获取 schema
 	schema, table := getSchemaAndTable(table)
+	// 读取 sql
 	return client.query(statements.TableSchema, schema, table)
 }
 
+// 获取物化视图
 func (client *Client) MaterializedView(name string) (*Result, error) {
 	return client.query(statements.MaterializedView, name)
 }
 
+// 获取函数
 func (client *Client) Function(id string) (*Result, error) {
 	return client.query(statements.Function, id)
 }
 
+// 获取表记录
 func (client *Client) TableRows(table string, opts RowsOptions) (*Result, error) {
 	schema, table := getSchemaAndTable(table)
 	sql := fmt.Sprintf(`SELECT * FROM "%s"."%s"`, schema, table)
@@ -329,6 +351,7 @@ func (client *Client) EstimatedTableRowsCount(table string, opts RowsOptions) (*
 	return result, nil
 }
 
+// 获取表记录总数
 func (client *Client) TableRowsCount(table string, opts RowsOptions) (*Result, error) {
 	// Return postgres estimated rows count on empty filter
 	if opts.Where == "" && client.serverType == postgresType {
@@ -352,6 +375,7 @@ func (client *Client) TableRowsCount(table string, opts RowsOptions) (*Result, e
 	return client.query(sql)
 }
 
+// 获取表信息
 func (client *Client) TableInfo(table string) (*Result, error) {
 	if client.serverType == cockroachType {
 		return client.query(statements.TableInfoCockroach)
@@ -360,6 +384,7 @@ func (client *Client) TableInfo(table string) (*Result, error) {
 	return client.query(statements.TableInfo, fmt.Sprintf(`"%s"."%s"`, schema, table))
 }
 
+// 获取表索引
 func (client *Client) TableIndexes(table string) (*Result, error) {
 	schema, table := getSchemaAndTable(table)
 	res, err := client.query(statements.TableIndexes, schema, table)
@@ -371,6 +396,7 @@ func (client *Client) TableIndexes(table string) (*Result, error) {
 	return res, err
 }
 
+// 获取表约束
 func (client *Client) TableConstraints(table string) (*Result, error) {
 	schema, table := getSchemaAndTable(table)
 	res, err := client.query(statements.TableConstraints, schema, table)
@@ -382,15 +408,18 @@ func (client *Client) TableConstraints(table string) (*Result, error) {
 	return res, err
 }
 
+// 获取表统计信息
 func (client *Client) TablesStats() (*Result, error) {
 	return client.query(statements.TablesStats)
 }
 
+// 获取服务器端设置
 func (client *Client) ServerSettings() (*Result, error) {
 	return client.query(statements.Settings)
 }
 
 // Returns all active queriers on the server
+// 获取服务器端所有活跃的查询
 func (client *Client) Activity() (*Result, error) {
 	if client.serverType == cockroachType {
 		return client.query("SHOW QUERIES")
@@ -405,6 +434,7 @@ func (client *Client) Activity() (*Result, error) {
 	return client.query(query)
 }
 
+// 执行查询
 func (client *Client) Query(query string) (*Result, error) {
 	res, err := client.query(query)
 
@@ -438,6 +468,7 @@ func (client *Client) ServerVersion() string {
 	return client.serverVersion
 }
 
+// 根据 client 配置来构造 context
 func (client *Client) context() (context.Context, context.CancelFunc) {
 	if client.queryTimeout > 0 {
 		return context.WithTimeout(context.Background(), client.queryTimeout)
@@ -478,12 +509,14 @@ func (client *Client) exec(query string, args ...interface{}) (*Result, error) {
 	return &result, nil
 }
 
+// 执行 SQL 查询
 func (client *Client) query(query string, args ...interface{}) (*Result, error) {
 	if client.db == nil {
 		return nil, nil
 	}
 
 	// Update the last usage time
+	// 更新最新使用时间
 	defer func() {
 		client.lastQueryTime = time.Now().UTC()
 	}()
@@ -499,19 +532,25 @@ func (client *Client) query(query string, args ...interface{}) (*Result, error) 
 		}
 	}
 
+	// 获取首个关键词，并进行小写处理
 	action := strings.ToLower(strings.Split(query, " ")[0])
+	// 是否存在 returning
 	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
 
+	// 对于 update / delete，且没有 returning 的，使用 exec
 	if (action == "update" || action == "delete") && !hasReturnValues {
 		return client.exec(query, args...)
 	}
 
+	// 获取查询的 context
 	ctx, cancel := client.context()
 	defer cancel()
 
 	queryStart := time.Now()
 	rows, err := client.db.QueryxContext(ctx, query, args...)
 	queryFinish := time.Now()
+
+	// 处理错误
 	if err != nil {
 		if command.Opts.Debug {
 			log.Println("Failed query:", query, "\nArgs:", args)
@@ -520,6 +559,7 @@ func (client *Client) query(query string, args ...interface{}) (*Result, error) 
 	}
 	defer rows.Close()
 
+	// 处理行信息
 	cols, err := rows.Columns()
 	if err != nil {
 		return nil, err
@@ -535,13 +575,16 @@ func (client *Client) query(query string, args ...interface{}) (*Result, error) 
 		Rows:    []Row{},
 	}
 
+	//
 	for rows.Next() {
 		obj, err := rows.SliceScan()
 
 		for i, item := range obj {
+			// 设置空数据为 nil
 			if item == nil {
 				obj[i] = nil
 			} else {
+				// 处理 slice
 				t := reflect.TypeOf(item).Kind().String()
 
 				if t == "slice" {
@@ -555,6 +598,7 @@ func (client *Client) query(query string, args ...interface{}) (*Result, error) 
 		}
 	}
 
+	// 记录统计信息
 	result.Stats = &ResultStats{
 		ColumnsCount:    len(cols),
 		RowsCount:       len(result.Rows),
@@ -563,16 +607,20 @@ func (client *Client) query(query string, args ...interface{}) (*Result, error) 
 		QueryDuration:   queryFinish.Sub(queryStart).Milliseconds(),
 	}
 
+	// 将 int 转换为 string
 	result.PostProcess()
 
 	return &result, nil
 }
 
 // Close database connection
+// 关闭数据库连接
 func (client *Client) Close() error {
+	// 已关闭，则退出
 	if client.closed {
 		return nil
 	}
+	// 标志为
 	defer func() {
 		client.closed = true
 		client.tunnel = nil
@@ -625,6 +673,7 @@ func (client *Client) fetchRows(q string) ([]string, error) {
 	return results, nil
 }
 
+// 检查是否已经记录过了，已记录则不再重复记录
 func (client *Client) hasHistoryRecord(query string) bool {
 	result := false
 

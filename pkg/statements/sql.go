@@ -4,19 +4,25 @@ import (
 	_ "embed"
 )
 
+// 内置查询 pg 相关信息的 SQL
 var (
+	// 查询所有数据库的信息
 	//go:embed sql/databases.sql
 	Databases string
 
+	// 查询除information_schema，pg_catalog，pg_toast外的所有的schema
 	//go:embed sql/schemas.sql
 	Schemas string
 
+	// 查询当前用户和版本等信息
 	//go:embed sql/info.sql
 	Info string
 
+	// 查询当前用户和版本等信息
 	//go:embed sql/info_simple.sql
 	InfoSimple string
 
+	// 查询
 	//go:embed sql/estimated_row_count.sql
 	EstimatedTableRowCount string
 
@@ -50,6 +56,7 @@ var (
 	//go:embed sql/settings.sql
 	Settings string
 
+	// 适配不同版本
 	// Activity queries for specific PG versions
 	Activity = map[string]string{
 		"default": "SELECT * FROM pg_stat_activity WHERE datname = current_database()",

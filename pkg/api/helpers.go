@@ -45,6 +45,7 @@ var (
 	regexCleanFilename = regexp.MustCompile(`[^\w]+`)
 )
 
+// 自定义错误类
 type Error struct {
 	Message string `json:"error"`
 }
@@ -83,6 +84,7 @@ func sanitizeFilename(str string) string {
 	return regexCleanFilename.ReplaceAllString(str, "")
 }
 
+// 读取SessionId，从 header.x-session-id => query._session_id
 func getSessionId(req *http.Request) string {
 	id := req.Header.Get("x-session-id")
 	if id == "" {
@@ -91,6 +93,7 @@ func getSessionId(req *http.Request) string {
 	return id
 }
 
+// 读取查询参数
 func getQueryParam(c *gin.Context, name string) string {
 	result := ""
 	q := c.Request.URL.Query()
@@ -102,6 +105,7 @@ func getQueryParam(c *gin.Context, name string) string {
 	return result
 }
 
+// 从 Form 中解析 Int 值
 func parseIntFormValue(c *gin.Context, name string, defValue int) (int, error) {
 	val := c.Request.FormValue(name)
 
@@ -121,6 +125,7 @@ func parseIntFormValue(c *gin.Context, name string, defValue int) (int, error) {
 	return num, nil
 }
 
+// 解析Ssh Info
 func parseSshInfo(c *gin.Context) *shared.SSHInfo {
 	info := shared.SSHInfo{
 		Host:        c.Request.FormValue("ssh_host"),
@@ -154,6 +159,7 @@ func assetContentType(name string) string {
 }
 
 // Send a query result to client
+// 发送结果给客户端
 func serveResult(c *gin.Context, result interface{}, err interface{}) {
 	if err != nil {
 		badRequest(c, err)
@@ -164,11 +170,13 @@ func serveResult(c *gin.Context, result interface{}, err interface{}) {
 }
 
 // Send successful response back to client
+// 成功响应
 func successResponse(c *gin.Context, data interface{}) {
 	c.JSON(200, data)
 }
 
 // Send an error response back to client
+// 错误响应
 func errorResponse(c *gin.Context, status int, err interface{}) {
 	var message interface{}
 

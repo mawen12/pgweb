@@ -4,6 +4,7 @@ import (
 	"time"
 )
 
+// 历史记录，有查询字符串，时间戳
 type Record struct {
 	Query     string `json:"query"`
 	Timestamp string `json:"timestamp"`

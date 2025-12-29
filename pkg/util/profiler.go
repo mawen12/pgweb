@@ -14,8 +14,10 @@ func runProfiler() {
 	m := &runtime.MemStats{}
 
 	for {
+		// 读取内存使用情况
 		runtime.ReadMemStats(m)
 
+		// 输出 Gorountines, Mem used, Mem acquired
 		logger.Printf(
 			"[DEBUG] Goroutines: %v, Mem used: %v (%v mb), Mem acquired: %v (%v mb)\n",
 			runtime.NumGoroutine(),
