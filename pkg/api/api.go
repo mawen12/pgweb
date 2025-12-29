@@ -315,6 +315,7 @@ func Disconnect(c *gin.Context) {
 		return
 	}
 
+	// 多session模式，则从SessionManager中移除
 	if command.Opts.Sessions {
 		result := DbSessions.Remove(getSessionId(c.Request))
 		successResponse(c, gin.H{"success": result})
@@ -333,6 +334,7 @@ func Disconnect(c *gin.Context) {
 		return
 	}
 
+	// 单session模式，直接设置DBClient为nil
 	DbClient = nil
 	successResponse(c, gin.H{"success": true})
 }

@@ -63,15 +63,18 @@ type Options struct {
 	// 仅支持从书签创建连接
 	BookmarksOnly bool `long:"bookmarks-only" description:"Allow only connections from bookmarks"`
 	// 本地查询目录
-	QueriesDir                   string `long:"queries-dir" description:"Overrides default directory for local queries"`
-	DisablePrettyJSON            bool   `long:"no-pretty-json" description:"Disable JSON formatting feature for result export"`
-	DisableSSH                   bool   `long:"no-ssh" description:"Disable database connections via SSH"`
-	ConnectBackend               string `long:"connect-backend" description:"Enable database authentication through a third party backend"`
-	ConnectToken                 string `long:"connect-token" description:"Authentication token for the third-party connect backend"`
-	ConnectHeaders               string `long:"connect-headers" description:"List of headers to pass to the connect backend"`
-	DisableConnectionIdleTimeout bool   `long:"no-idle-timeout" description:"Disable connection idle timeout"`
-	ConnectionIdleTimeout        int    `long:"idle-timeout" description:"Set connection idle timeout in minutes" default:"180"`
-	QueryTimeout                 uint   `long:"query-timeout" description:"Set global query execution timeout in seconds" default:"300"`
+	QueriesDir        string `long:"queries-dir" description:"Overrides default directory for local queries"`
+	DisablePrettyJSON bool   `long:"no-pretty-json" description:"Disable JSON formatting feature for result export"`
+	DisableSSH        bool   `long:"no-ssh" description:"Disable database connections via SSH"`
+	ConnectBackend    string `long:"connect-backend" description:"Enable database authentication through a third party backend"`
+	ConnectToken      string `long:"connect-token" description:"Authentication token for the third-party connect backend"`
+	ConnectHeaders    string `long:"connect-headers" description:"List of headers to pass to the connect backend"`
+	// 禁用链接存储超时，则不再检测链接是否超时，应用于 session manager
+	DisableConnectionIdleTimeout bool `long:"no-idle-timeout" description:"Disable connection idle timeout"`
+	// 设置链接超时时间，默认 180m
+	ConnectionIdleTimeout int `long:"idle-timeout" description:"Set connection idle timeout in minutes" default:"180"`
+	// 设置查询超时时间，默认 300s
+	QueryTimeout uint `long:"query-timeout" description:"Set global query execution timeout in seconds" default:"300"`
 	// 跨域拦截
 	Cors bool `long:"cors" description:"Enable Cross-Origin Resource Sharing (CORS)"`
 	// 当开启跨域拦截时有效
