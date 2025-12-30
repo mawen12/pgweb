@@ -22,6 +22,7 @@ var filterOptions = {
   "not_null":   "IS NOT NULL"
 };
 
+// 从 session 存储中读取 session_id
 function getSessionId() {
   var id = sessionStorage.getItem("session_id");
 
@@ -33,20 +34,24 @@ function getSessionId() {
   return id;
 }
 
+// 将 rows_limit 更新到 local 存储中
 function setRowsLimit(num) {
   localStorage.setItem("rows_limit", num);
 }
 
+// 读取 rows_limit，如果没有则取默认值 100
 function getRowsLimit() {
   return parseInt(localStorage.getItem("rows_limit") || default_rows_limit);
 }
 
+// 计算分页迁移
 function getPaginationOffset() {
   var page  = $(".current-page").data("page");
   var limit = getRowsLimit();
   return (page - 1) * limit;
 }
 
+// 计算页数
 function getPagesCount(rowsCount) {
   var limit = getRowsLimit();
   var num = parseInt(rowsCount / limit);
@@ -58,6 +63,7 @@ function getPagesCount(rowsCount) {
   return num;
 }
 
+// 调用 api
 function apiCall(method, path, params, cb) {
   var timeout = appFeatures.query_timeout;
   if (timeout == null) {
@@ -65,22 +71,26 @@ function apiCall(method, path, params, cb) {
   }
 
   $.ajax({
+    // 超时为 300s
     timeout: timeout * 1000, // in milliseconds
     url: "api" + path,
     method: method,
-    cache: false,
+    cache: false, // 不缓存
     data: params,
     headers: {
+      // 请求头携带 session
       "x-session-id": getSessionId()
     },
     success: cb,
     error: function(xhr, status, data) {
       switch(status) {
+        // 响应错误
         case "error":
           if (xhr.readyState == 0) { // 0 = UNSENT
             showErrorBanner("Sorry, something went wrong with your request. Refresh the page and try again!");
           }
           break;
+        // 超时错误
         case "timeout":
           return cb({ error: "Query timeout after " + timeout + "s" });
       }
@@ -132,6 +142,7 @@ function showErrorBanner(text) {
   $("#error_banner").text(text).show();
 }
 
+// 构建schema选择区
 function buildSchemaSection(name, objects) {
   var section = "";
 
@@ -186,6 +197,7 @@ function buildSchemaSection(name, objects) {
   return section;
 }
 
+// 加载本地查询
 function loadLocalQueries() {
   if (!appFeatures.local_queries) return;
 

@@ -8,6 +8,7 @@ if (!Array.prototype.forEach) {
   }
 }
 
+// 将文本复制到剪切板
 function copyToClipboard(text) {
   const element = document.createElement("textarea");
   element.style.display = "none;"

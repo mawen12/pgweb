@@ -7,6 +7,27 @@
 
 - `tuvistavie/securerandom` 生成安全的 session id
 - `mitchellh/go-homedir` 获取用户目录
+- `jessevdk/go-flags` 解析命令行参数
+
+###
+
+- api 层 => gin + middleware + routes + sessionManager
+  - `client.Client`
+  - `SessionManager`
+    - `client.Client`
+  - `queries.Store`
+- client 层 => Client + bookmarks + history + sql
+  - `sqlx.DB`
+  - `history.Record`
+- db 层 => sqlx
+
+- 启动 => cli + command
+
+## Logic
+
+- 1.pkg/command
+- 2.pkg/client
+- 3.pkg/cli
 
 ## 前端
 
